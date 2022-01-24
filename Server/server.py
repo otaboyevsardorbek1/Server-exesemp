@@ -35,12 +35,6 @@ db.commit()
 
 ACCOUNTS = {}
 for account in sql.execute("SELECT * From Accounts"):
-	dir_find = False
-	for dir in os.listdir(f'{PATH}/Files'):
-		if dir == account[2]:
-			dir_find = True
-	if dir_find == False:
-		os.mkdir(f'{PATH}/Files/{account[2]}')
 	ACCOUNTS.update(
 		{
 			account[2]: {
@@ -60,29 +54,29 @@ for account in sql.execute("SELECT * From Accounts"):
 app = Flask(__name__)
 
 @app.route('/vk_bot/registration', methods = ['POST'])
-def vk_api_registration():
+def vk_bot_registration():
 	user_data = json.loads(request.data.decode('UTF-8'))
 	sql.execute(f"SELECT * From Accounts WHERE Login = '{user_data['Login']}'")
 	account = sql.fetchone()
 	if account == None:
-		sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (user_data['Login'], user_data['Password'], generate_uniqu_key()))
+		key = ''
+		for i in range(20):
+			key += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
+		sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (user_data['Login'], user_data['Password'], key))
 		db.commit()
-		sql.execute(f"SELECT * From Accounts WHERE Login = '{user_data['Login']}'")
-		account = sql.fetchone()
-		os.mkdir(f'{PATH}/Files/{account[2]}')
-		
+		os.mkdir(f'{PATH}/Files/{key}')
 		ACCOUNTS.update(
 			{
-				account[2]: {
-					'db': sqlite3.connect(f'{PATH}/Files/{account[2]}/VK_Bot-Users-DataBase.db', check_same_thread = False)
+				key: {
+					'db': sqlite3.connect(f'{PATH}/Files/{key}/VK_Bot-Users-DataBase.db', check_same_thread = False)
 				}
 			}
 		)
 		ACCOUNTS.update(
 			{
-				account[2]: {
-					'sql': ACCOUNTS[account[2]]['db'].cursor(),
-					'db': ACCOUNTS[account[2]]['db']
+				key: {
+					'sql': key['db'].cursor(),
+					'db': key['db']
 				}
 			}
 		)
@@ -99,7 +93,7 @@ def vk_api_registration():
 		), 400
 
 @app.route('/vk_bot/authorization', methods = ['POST'])
-def vk_api_authorization():
+def vk_bot_authorization():
 	user_data = json.loads(request.data.decode('UTF-8'))
 	sql.execute(f"SELECT * From Accounts WHERE Login = '{user_data['Login']}'")
 	account = sql.fetchone()
@@ -125,7 +119,7 @@ def vk_api_authorization():
 		), 400
 
 @app.route('/vk_bot/files/database/find', methods = ['POST'])
-def vk_api_database_find():
+def vk_bot_files_database_find():
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		if user_data['Unique_Key'] in ACCOUNTS:
@@ -151,7 +145,7 @@ def vk_api_database_find():
 		), 400
 
 @app.route('/vk_bot/files/database/find_all', methods = ['POST'])
-def vk_api_database_find_all():
+def vk_bot_files_database_find_all():
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		if user_data['Unique_Key'] in ACCOUNTS:
@@ -177,7 +171,7 @@ def vk_api_database_find_all():
 		), 400
 
 @app.route('/vk_bot/files/database/edit_database', methods = ['POST'])
-def vk_api_database_edit_database():
+def vk_bot_files_database_edit_database():
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		if user_data['Unique_Key'] in ACCOUNTS:

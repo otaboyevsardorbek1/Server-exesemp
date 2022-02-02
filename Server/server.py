@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from flask import Flask, request
-import threading
 import platform
 import sqlite3
 import random
@@ -9,23 +8,38 @@ import json
 import os
 
 # Узнаем текущию деректорию (Нужно для хоста)
+# ==================================================================
 PATH = os.getcwd()
 if platform.system() == 'Windows':
 	PATH = PATH.split('\\')
 	PATH = '/'.join(PATH[0:len(PATH) - 1])
 else:
 	PATH += '/Server'
+# ==================================================================
 
+# Создание всех нужных переменных
+# ==================================================================
+app = Flask(__name__)
+ACCOUNTS = {}
+# ==================================================================
+
+# Обычные функции
+# ==================================================================
 def generate_uniqu_key():
 	password = ''
 	for i in range(20):
 		password += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
 	return password
+# ==================================================================
 
+# Подключение основной DB
+# ==================================================================
 db = sqlite3.connect(f'{PATH}/Files/VK_Bot-Accounts-DataBase.db', check_same_thread = False)
 sql = db.cursor()
+# ==================================================================
 
-ACCOUNTS = {}
+# Подключение DB пользователей
+# ==================================================================
 for account in sql.execute("SELECT * From Accounts"):
 	ACCOUNTS.update(
 		{
@@ -42,9 +56,10 @@ for account in sql.execute("SELECT * From Accounts"):
 			}
 		}
 	)
+# ==================================================================
 
-app = Flask(__name__)
-
+# Логика основных страниц
+# ==================================================================
 @app.route('/vk_bot/registration', methods = ['POST'])
 def vk_bot_registration():
 	user_data = json.loads(request.data.decode('UTF-8'))
@@ -189,6 +204,7 @@ def vk_bot_files_database_edit_database():
 				'Answer': 'Ошибка на сервере!'
 			}, ensure_ascii = False
 		), 400
+# ==================================================================
 
 if __name__ == '__main__':
 	app.run(debug = True)

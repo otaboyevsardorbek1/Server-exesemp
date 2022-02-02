@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from flask import Flask, request
 import threading
 import platform
@@ -20,18 +22,8 @@ def generate_uniqu_key():
 		password += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
 	return password
 
-lock = threading.Lock()
 db = sqlite3.connect(f'{PATH}/Files/VK_Bot-Accounts-DataBase.db', check_same_thread = False)
 sql = db.cursor()
-
-sql.execute("""
-	CREATE TABLE IF NOT EXISTS Accounts(
-		Login TEXT,
-		Password TEXT,
-		Unique_Key TEXT
-	)
-""")
-db.commit()
 
 ACCOUNTS = {}
 for account in sql.execute("SELECT * From Accounts"):

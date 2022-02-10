@@ -20,16 +20,17 @@ else:
 # Создание всех нужных переменных
 # ==================================================================
 app = Flask(__name__)
+
 ACCOUNTS = {}
 # ==================================================================
 
 # Обычные функции
 # ==================================================================
 def generate_uniqu_key():
-	password = ''
+	uniqu_key = ''
 	for i in range(20):
-		password += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
-	return password
+		uniqu_key += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
+	return uniqu_key
 # ==================================================================
 
 # Подключение основной DB
@@ -66,24 +67,22 @@ def vk_bot_registration():
 	sql.execute(f"SELECT * From Accounts WHERE Login = '{user_data['Login']}'")
 	account = sql.fetchone()
 	if account == None:
-		key = ''
-		for i in range(20):
-			key += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
-		sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (user_data['Login'], user_data['Password'], key))
+		uniqu_key = generate_uniqu_key()
+		sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (user_data['Login'], user_data['Password'], uniqu_key))
 		db.commit()
-		os.mkdir(f'{PATH}/Files/{key}')
+		os.mkdir(f'{PATH}/Files/{uniqu_key}')
 		ACCOUNTS.update(
 			{
-				key: {
-					'db': sqlite3.connect(f'{PATH}/Files/{key}/VK_Bot-Users-DataBase.db', check_same_thread = False)
+				uniqu_key: {
+					'db': sqlite3.connect(f'{PATH}/Files/{uniqu_key}/VK_Bot-Users-DataBase.db', check_same_thread = False)
 				}
 			}
 		)
 		ACCOUNTS.update(
 			{
-				key: {
-					'sql': key['db'].cursor(),
-					'db': key['db']
+				uniqu_key: {
+					'sql': uniqu_key['db'].cursor(),
+					'db': uniqu_key['db']
 				}
 			}
 		)

@@ -21,44 +21,7 @@ else:
 # Создание всех нужных переменных
 # ==================================================================
 app = Flask(__name__)
-
 accounts = {}
-# ==================================================================
-
-# Обычные функции
-# ==================================================================
-def clear_key(key):
-	if len(key) < 8:
-		while len(key) < 8:
-			key += 'd'
-		key = key.encode('UTF-8')
-	else:
-		key = ''.join(list(key)[0:8]).encode('UTF-8')
-	return key
-
-def encrypt(key, data):
-	def pad(data):
-		while len(data) % 8 != 0:
-			data += b' '
-		return data
-
-	key = clear_key(key)
-	des = DES.new(key, DES.MODE_ECB)
-	padded_data = pad(data.encode('UTF-8'))
-	encrypted_data = des.encrypt(padded_data)
-	return encrypted_data
-
-def decrypt(key, encrypted_data):
-	key = clear_key(key)
-	des = DES.new(key, DES.MODE_ECB)
-	decrypted_data = des.decrypt(encrypted_data)
-	return decrypted_data.decode('UTF-8').strip()
-
-def generate_unique_key():
-	uniqu_key = ''
-	for i in range(20):
-		uniqu_key += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
-	return uniqu_key
 # ==================================================================
 
 # Подключение основной DB
@@ -99,6 +62,42 @@ for account in sql.execute("SELECT * From Accounts"):
 	)
 # ==================================================================
 
+# Обычные функции
+# ==================================================================
+def clear_key(key): # Получение чистого ключа из пароля
+	if len(key) < 8:
+		while len(key) < 8:
+			key += 'd'
+		key = key.encode('UTF-8')
+	else:
+		key = ''.join(list(key)[0:8]).encode('UTF-8')
+	return key
+
+def encrypt(key, data): # Шифрование
+	def pad(data):
+		while len(data) % 8 != 0:
+			data += b' '
+		return data
+
+	key = clear_key(key)
+	des = DES.new(key, DES.MODE_ECB)
+	padded_data = pad(data.encode('UTF-8'))
+	encrypted_data = des.encrypt(padded_data)
+	return encrypted_data
+
+def decrypt(key, encrypted_data): # Дешифровка
+	key = clear_key(key)
+	des = DES.new(key, DES.MODE_ECB)
+	decrypted_data = des.decrypt(encrypted_data)
+	return decrypted_data.decode('UTF-8').strip()
+
+def generate_unique_key(): # Генератор уникального ключа
+	uniqu_key = ''
+	for i in range(20):
+		uniqu_key += random.choice('abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
+	return uniqu_key
+# ==================================================================
+
 # Логика страниц для проекта "VK-Bot"
 # ==================================================================
 @app.route('/vk_bot/registration', methods = ['POST'])
@@ -114,7 +113,6 @@ def vk_bot_registration(): # Регистрация
 		if account == None:
 			# Шифрования пароля
 			encrypted_password = encrypt(password, password)
-			print(encrypted_password)
 
 			# Создания уникального ключа для пользователя
 			uniqu_key = generate_unique_key()

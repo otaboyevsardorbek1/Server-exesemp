@@ -128,7 +128,6 @@ def vk_bot_registration(): # Регистрация
 			with open(f'{PATH}/Files/{uniqu_key}/Bot-Settings.json', 'ab') as file:
 				data = {
 					'Automati_Save_Log': False,
-					'User_Commands': False,
 					'VK_Token': '',
 					'Group_ID': ''
 				}
@@ -138,7 +137,37 @@ def vk_bot_registration(): # Регистрация
 
 			# Создание файла "User-Commands.json"
 			with open(f'{PATH}/Files/{uniqu_key}/User-Commands.json', 'ab') as file:
-				data = json.dumps([], ensure_ascii = False, indent = 2)
+				user_commands = [
+					{
+						'Command_Name': 'Вывод статистики',
+						'Command': '!Статистика',
+						'Command_Answer': """\
+Вас зовут: {user}
+Ваш ранг: {db[4]}
+Ваш балланс: {db[2]}
+Ваш уровень: {db[1]}
+Ваш опыт: {db[3]}"""
+					},
+					{
+						'Command_Name': 'Вывод статистики другого пользователя',
+						'Command': '!Статистика пользователя {take_user_id}',
+						'Command_Answer': """\
+Имя пользователя: {other_user}
+Ранг пользователя: {other_db[4]}
+Балланс пользователя: {other_db[2]}
+Уровень пользователя: {other_db[1]}
+Опыт пользователя: {other_db[3]}"""
+					},
+					{
+						'Command_Name': 'Вывод список команд',
+						'Command': '!Список команд',
+						'Command_Answer': """\
+Список команд:
+{all_commands}"""
+					}
+				]
+
+				data = json.dumps(user_commands, ensure_ascii = False, indent = 2)
 				data = encrypt(password, data)
 				file.write(data)
 

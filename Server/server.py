@@ -8,24 +8,32 @@ import random
 import json
 import os
 
-# Узнаем текущию деректорию (Нужно для хоста)
-# ==================================================================
+# Если сервер на хосте
 PATH = os.getcwd()
 if platform.system() == 'Windows':
 	PATH = PATH.split('\\')
 	PATH = '/'.join(PATH[0:len(PATH) - 1])
 else:
 	PATH += '/Server'
-# ==================================================================
+
+# Если сервер на PC
+# PATH = os.getcwd()
+# PATH = PATH.split('\\')
+# PATH = '/'.join(PATH[0:len(PATH) - 1])
 
 # Создание всех нужных переменных
 # ==================================================================
 app = Flask(__name__)
-accounts = {}
+vk_bot_accounts = {}
 # ==================================================================
 
 # Подключение основной DB
 # ==================================================================
+try:
+	os.mkdir(f'{PATH}/Files')
+except FileExistsError:
+	pass
+
 db = sqlite3.connect(f'{PATH}/Files/VK_Bot-Accounts-DataBase.db', check_same_thread = False)
 sql = db.cursor()
 
@@ -37,29 +45,6 @@ sql.execute("""
 	)
 """)
 db.commit()
-# ==================================================================
-
-# Подключение DB пользователей
-# ==================================================================
-for account in sql.execute("SELECT * From Accounts"):
-	accounts.update(
-		{
-			account[2]: {
-				'db': sqlite3.connect(f'{PATH}/Files/{account[2]}/VK_Bot-Users-DataBase.db', check_same_thread = False)
-			}
-		}
-	)
-	accounts.update(
-		{
-			account[2]: {
-				'Bot_Settings': f'{PATH}/Files/{account[2]}/Bot-Settings.json',
-				'User_Commands': f'{PATH}/Files/{account[2]}/User-Commands.json',
-				'Log': f'{PATH}/Files/{account[2]}/Log.txt',
-				'sql': accounts[account[2]]['db'].cursor(),
-				'db': accounts[account[2]]['db']
-			}
-		}
-	)
 # ==================================================================
 
 # Обычные функции
@@ -179,22 +164,22 @@ def vk_bot_registration(): # Регистрация
 				file.write(data)
 
 
-			# Запись в константу "accounts" нового пользователя
-			accounts.update(
+			# Запись в константу "vk_bot_accounts" нового пользователя
+			vk_bot_accounts.update(
 				{
 					uniqu_key: {
 						'db': sqlite3.connect(f'{PATH}/Files/{uniqu_key}/VK_Bot-Users-DataBase.db', check_same_thread = False)
 					}
 				}
 			)
-			accounts.update(
+			vk_bot_accounts.update(
 				{
 					uniqu_key: {
 						'Bot_Settings': f'{PATH}/Files/{uniqu_key}/Bot-Settings.json',
 						'User_Commands': f'{PATH}/Files/{uniqu_key}/User-Commands.json',
 						'Log': f'{PATH}/Files/{uniqu_key}/Log.txt',
-						'sql': accounts[uniqu_key]['db'].cursor(),
-						'db': accounts[uniqu_key]['db']
+						'sql': vk_bot_accounts[uniqu_key]['db'].cursor(),
+						'db': vk_bot_accounts[uniqu_key]['db']
 					}
 				}
 			)
@@ -229,19 +214,31 @@ def vk_bot_authorization(): # Авторизация
 
 		if account != None:
 			# Расшифрования пароля
-			decrypted_account_password = decrypt(password, account[1])
+			enrypted_password = encrypt(password, password)
 
-			if decrypted_account_password == password:
-				# Получение настроек бота
-				with open(accounts[account[2]]['Bot_Settings'], 'rb') as file:
-					bot_settings = file.read()
-					bot_settings = decrypt(password, bot_settings)
-					bot_settings = json.loads(bot_settings)
+			if enrypted_password == account[1]:
+				vk_bot_accounts.update(
+					{
+						account[2]: {
+							'db': sqlite3.connect(f'{PATH}/Files/{account[2]}/VK_Bot-Users-DataBase.db', check_same_thread = False)
+						}
+					}
+				)
+				vk_bot_accounts.update(
+					{
+						account[2]: {
+							'Bot_Settings': f'{PATH}/Files/{account[2]}/Bot-Settings.json',
+							'User_Commands': f'{PATH}/Files/{account[2]}/User-Commands.json',
+							'Log': f'{PATH}/Files/{account[2]}/Log.txt',
+							'sql': vk_bot_accounts[account[2]]['db'].cursor(),
+							'db': vk_bot_accounts[account[2]]['db']
+						}
+					}
+				)
 
 				return json.dumps(
 					{
 						'Answer': 'Вы успешно авторизовались.',
-						'Bot_Settings': bot_settings,
 						'Unique_Key': account[2]
 					}, ensure_ascii = False
 				), 200
@@ -271,8 +268,8 @@ def vk_bot_files_bot_settings_get(): # Получение настроек бо�
 		password = user_data['Password']
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			with open(accounts[unique_key]['Bot_Settings'], 'rb') as file:
+		if unique_key in vk_bot_accounts:
+			with open(vk_bot_accounts[unique_key]['Bot_Settings'], 'rb') as file:
 				bot_settings = file.read()
 				bot_settings = decrypt(password, bot_settings)
 				bot_settings = json.loads(bot_settings)
@@ -303,8 +300,8 @@ def vk_bot_files_bot_settings_update(): # Обновление настроек 
 		password = user_data['Password']
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			with open(accounts[unique_key]['Bot_Settings'], 'wb') as file:
+		if unique_key in vk_bot_accounts:
+			with open(vk_bot_accounts[unique_key]['Bot_Settings'], 'wb') as file:
 				bot_settings = json.dumps(user_data['Bot_Settings'], ensure_ascii = False, indent = 2)
 				bot_settings = encrypt(password, bot_settings)
 				file.write(bot_settings)
@@ -334,8 +331,8 @@ def vk_bot_files_user_commands_get(): # Получение команд бота
 		password = user_data['Password']
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			with open(accounts[unique_key]['User_Commands'], 'rb') as file:
+		if unique_key in vk_bot_accounts:
+			with open(vk_bot_accounts[unique_key]['User_Commands'], 'rb') as file:
 				user_commands = file.read()
 				user_commands = decrypt(password, user_commands)
 				user_commands = json.loads(user_commands)
@@ -366,8 +363,8 @@ def vk_bot_files_user_commands_update(): # Обновление команд б�
 		password = user_data['Password']
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			with open(accounts[unique_key]['User_Commands'], 'wb') as file:
+		if unique_key in vk_bot_accounts:
+			with open(vk_bot_accounts[unique_key]['User_Commands'], 'wb') as file:
 				user_commands = json.dumps(user_data['User_Commands'], ensure_ascii = False, indent = 2)
 				user_commands = encrypt(password, user_commands)
 				file.write(user_commands)
@@ -391,8 +388,8 @@ def vk_bot_files_log_get(): # Получение логов бота
 		password = user_data['Password']
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			with open(accounts[unique_key]['Log'], 'rb') as file:
+		if unique_key in vk_bot_accounts:
+			with open(vk_bot_accounts[unique_key]['Log'], 'rb') as file:
 				log = file.read()
 				log = decrypt(password, log)
 				log = json.loads(log)
@@ -423,8 +420,8 @@ def vk_bot_files_log_update(): # Обновление логов бота
 		password = user_data['Password']
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			with open(accounts[unique_key]['Log'], 'wb') as file:
+		if unique_key in vk_bot_accounts:
+			with open(vk_bot_accounts[unique_key]['Log'], 'wb') as file:
 				log = json.dumps(user_data['Log'], ensure_ascii = False, indent = 2)
 				log = encrypt(password, log)
 				file.write(log)
@@ -453,9 +450,9 @@ def vk_bot_files_database_find(): # Поиск одной записи в БД
 		user_data = json.loads(request.data.decode('UTF-8'))
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
-			result = accounts[unique_key]['sql'].fetchone()
+		if unique_key in vk_bot_accounts:
+			vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
+			result = vk_bot_accounts[unique_key]['sql'].fetchone()
 
 			return json.dumps(
 				{
@@ -482,9 +479,9 @@ def vk_bot_files_database_find_all(): # Поиск несколько запис
 		user_data = json.loads(request.data.decode('UTF-8'))
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
-			accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
-			result = accounts[unique_key]['sql'].fetchall()
+		if unique_key in vk_bot_accounts:
+			vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
+			result = vk_bot_accounts[unique_key]['sql'].fetchall()
 
 			return json.dumps(
 				{
@@ -511,13 +508,13 @@ def vk_bot_files_database_edit_database(): # Редактирования БД
 		user_data = json.loads(request.data.decode('UTF-8'))
 		unique_key = user_data['Unique_Key']
 
-		if unique_key in accounts:
+		if unique_key in vk_bot_accounts:
 
 			if 'Values' in user_data:
-				accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'], user_data['Values'])
+				vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'], user_data['Values'])
 			else:
-				accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
-			accounts[unique_key]['db'].commit()
+				vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
+			vk_bot_accounts[unique_key]['db'].commit()
 
 			return json.dumps(
 				{

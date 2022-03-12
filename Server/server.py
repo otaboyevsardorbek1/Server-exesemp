@@ -27,7 +27,7 @@ app = Flask(__name__)
 vk_bot_accounts = {}
 # ==================================================================
 
-# Подключение основной DB
+# Подключение DB для проекта "VK Bot"
 # ==================================================================
 try:
 	os.mkdir(f'{PATH}/Files')
@@ -83,8 +83,58 @@ def generate_unique_key(): # Генератор уникального ключ�
 	return uniqu_key
 # ==================================================================
 
-# Логика страниц для проекта "VK-Bot"
+# Логика страниц для проекта "VK Bot"
 # ==================================================================
+def check_user_login_and_password_and_unique_key(func): # Декоратор
+	def wrapper():
+		try:
+			user_data = json.loads(request.data.decode('UTF-8'))
+			login = user_data['Login']
+			password = user_data['Password']
+			unique_key = user_data['Unique_Key']
+
+			sql.execute(f"SELECT * From Accounts WHERE Login = '{login}'")
+			account = sql.fetchone()
+
+			if account != None:
+				enrypted_password = encrypt(password, password)
+				if enrypted_password == account[1]:
+					if unique_key  == account[2]:
+						if unique_key in vk_bot_accounts:
+							return func(user_data)
+						else:
+							return json.dumps(
+								{
+									'Answer': 'Ошибка сервера, перелогиньтесь!'
+								}, ensure_ascii = False
+							), 400
+					else:
+						return json.dumps(
+						{
+							'Answer': 'Был передан неверный "Unique_Key"!'
+						}, ensure_ascii = False
+					), 400
+				else:
+					return json.dumps(
+					{
+						'Answer': 'Был передан неверный "Password"!'
+					}, ensure_ascii = False
+					), 400
+			else:
+				return json.dumps(
+					{
+						'Answer': 'Был передан неверный "Login"!'
+					}, ensure_ascii = False
+					), 400
+		except:
+			return json.dumps(
+				{
+					'Answer': 'Неизвестная ошибка на сервере!'
+				}, ensure_ascii = False
+			), 400
+	wrapper.__name__ = func.__name__
+	return wrapper
+
 @app.route('/vk_bot/registration', methods = ['POST'])
 def vk_bot_registration(): # Регистрация
 	try:
@@ -213,9 +263,7 @@ def vk_bot_authorization(): # Авторизация
 		account = sql.fetchone()
 
 		if account != None:
-			# Расшифрования пароля
 			enrypted_password = encrypt(password, password)
-
 			if enrypted_password == account[1]:
 				vk_bot_accounts.update(
 					{
@@ -262,277 +310,156 @@ def vk_bot_authorization(): # Авторизация
 		), 400
 
 @app.route('/vk_bot/files/bot_settings/get', methods = ['POST'])
-def vk_bot_files_bot_settings_get(): # Получение настроек бота
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		password = user_data['Password']
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_bot_settings_get(user_data): # Получение настроек бота
+	password = user_data['Password']
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			with open(vk_bot_accounts[unique_key]['Bot_Settings'], 'rb') as file:
-				bot_settings = file.read()
-				bot_settings = decrypt(password, bot_settings)
-				bot_settings = json.loads(bot_settings)
+	with open(vk_bot_accounts[unique_key]['Bot_Settings'], 'rb') as file:
+		bot_settings = file.read()
+		bot_settings = decrypt(password, bot_settings)
+		bot_settings = json.loads(bot_settings)
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к файлу "Bot-Settings.json" был успешно выполнен.',
-					'Bot_Settings': bot_settings
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к файлу "Bot-Settings.json" был успешно выполнен.',
+			'Bot_Settings': bot_settings
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/bot_settings/update', methods = ['POST'])
-def vk_bot_files_bot_settings_update(): # Обновление настроек бота
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		password = user_data['Password']
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_bot_settings_update(user_data): # Обновление настроек бота
+	password = user_data['Password']
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			with open(vk_bot_accounts[unique_key]['Bot_Settings'], 'wb') as file:
-				bot_settings = json.dumps(user_data['Bot_Settings'], ensure_ascii = False, indent = 2)
-				bot_settings = encrypt(password, bot_settings)
-				file.write(bot_settings)
+	with open(vk_bot_accounts[unique_key]['Bot_Settings'], 'wb') as file:
+		bot_settings = json.dumps(user_data['Bot_Settings'], ensure_ascii = False, indent = 2)
+		bot_settings = encrypt(password, bot_settings)
+		file.write(bot_settings)
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к файлу "Bot-Settings.json" был успешно выполнен.'
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к файлу "Bot-Settings.json" был успешно выполнен.'
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/user_commands/get', methods = ['POST'])
-def vk_bot_files_user_commands_get(): # Получение команд бота
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		password = user_data['Password']
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_user_commands_get(user_data): # Получение команд бота
+	password = user_data['Password']
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			with open(vk_bot_accounts[unique_key]['User_Commands'], 'rb') as file:
-				user_commands = file.read()
-				user_commands = decrypt(password, user_commands)
-				user_commands = json.loads(user_commands)
+	with open(vk_bot_accounts[unique_key]['User_Commands'], 'rb') as file:
+		user_commands = file.read()
+		user_commands = decrypt(password, user_commands)
+		user_commands = json.loads(user_commands)
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к файлу "Bot-Settings.json" был успешно выполнен.',
-					'User_Commands': user_commands
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к файлу "Bot-Settings.json" был успешно выполнен.',
+			'User_Commands': user_commands
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/user_commands/update', methods = ['POST'])
-def vk_bot_files_user_commands_update(): # Обновление команд бота
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		password = user_data['Password']
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_user_commands_update(user_data): # Обновление команд бота
+	password = user_data['Password']
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			with open(vk_bot_accounts[unique_key]['User_Commands'], 'wb') as file:
-				user_commands = json.dumps(user_data['User_Commands'], ensure_ascii = False, indent = 2)
-				user_commands = encrypt(password, user_commands)
-				file.write(user_commands)
+	with open(vk_bot_accounts[unique_key]['User_Commands'], 'wb') as file:
+		user_commands = json.dumps(user_data['User_Commands'], ensure_ascii = False, indent = 2)
+		user_commands = encrypt(password, user_commands)
+		file.write(user_commands)
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к файлу "User-Commands.json" был успешно выполнен.'
-				}, ensure_ascii = False
-			), 200
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к файлу "User-Commands.json" был успешно выполнен.'
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/log/get', methods = ['POST'])
-def vk_bot_files_log_get(): # Получение логов бота
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		password = user_data['Password']
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_log_get(user_data): # Получение логов бота
+	password = user_data['Password']
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			with open(vk_bot_accounts[unique_key]['Log'], 'rb') as file:
-				log = file.read()
-				log = decrypt(password, log)
-				log = json.loads(log)
+	with open(vk_bot_accounts[unique_key]['Log'], 'rb') as file:
+		log = file.read()
+		log = decrypt(password, log)
+		log = json.loads(log)
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к файлу "Log.txt" был успешно выполнен.',
-					'Log': log
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к файлу "Log.txt" был успешно выполнен.',
+			'Log': log
+		}, ensure_ascii = False
+	), 200
 
+@check_user_login_and_password_and_unique_key
 @app.route('/vk_bot/files/log/update', methods = ['POST'])
-def vk_bot_files_log_update(): # Обновление логов бота
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		password = user_data['Password']
-		unique_key = user_data['Unique_Key']
+def vk_bot_files_log_update(user_data): # Обновление логов бота
+	password = user_data['Password']
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			with open(vk_bot_accounts[unique_key]['Log'], 'wb') as file:
-				log = json.dumps(user_data['Log'], ensure_ascii = False, indent = 2)
-				log = encrypt(password, log)
-				file.write(log)
+	with open(vk_bot_accounts[unique_key]['Log'], 'wb') as file:
+		log = json.dumps(user_data['Log'], ensure_ascii = False, indent = 2)
+		log = encrypt(password, log)
+		file.write(log)
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к файлу "Log.txt" был успешно выполнен.'
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к файлу "Log.txt" был успешно выполнен.'
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/database/find', methods = ['POST'])
-def vk_bot_files_database_find(): # Поиск одной записи в БД
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_database_find(user_data): # Поиск одной записи в БД
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
-			result = vk_bot_accounts[unique_key]['sql'].fetchone()
+	vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
+	result = vk_bot_accounts[unique_key]['sql'].fetchone()
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к базе данных был успешно выполнен.',
-					'Result': result
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к базе данных был успешно выполнен.',
+			'Result': result
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/database/find_all', methods = ['POST'])
-def vk_bot_files_database_find_all(): # Поиск несколько записей в БД
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_database_find_all(user_data): # Поиск несколько записей в БД
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
-			vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
-			result = vk_bot_accounts[unique_key]['sql'].fetchall()
+	vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
+	result = vk_bot_accounts[unique_key]['sql'].fetchall()
 
-			return json.dumps(
-				{
-					'Answer': 'Запрос к базе данных был успешно выполнен.',
-					'Result': result
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к базе данных был успешно выполнен.',
+			'Result': result
+		}, ensure_ascii = False
+	), 200
 
 @app.route('/vk_bot/files/database/edit_database', methods = ['POST'])
-def vk_bot_files_database_edit_database(): # Редактирования БД
-	try:
-		user_data = json.loads(request.data.decode('UTF-8'))
-		unique_key = user_data['Unique_Key']
+@check_user_login_and_password_and_unique_key
+def vk_bot_files_database_edit_database(user_data): # Редактирования БД
+	unique_key = user_data['Unique_Key']
 
-		if unique_key in vk_bot_accounts:
+	if 'Values' in user_data:
+		vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'], user_data['Values'])
+	else:
+		vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
+	vk_bot_accounts[unique_key]['db'].commit()
 
-			if 'Values' in user_data:
-				vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'], user_data['Values'])
-			else:
-				vk_bot_accounts[unique_key]['sql'].execute(user_data['SQLite3_Command'])
-			vk_bot_accounts[unique_key]['db'].commit()
-
-			return json.dumps(
-				{
-					'Answer': 'Запрос к базе данных был успешно выполнен.'
-				}, ensure_ascii = False
-			), 200
-		else:
-			return json.dumps(
-				{
-					'Answer': 'Неизвестная ошибка на сервере!'
-				}, ensure_ascii = False
-			), 400
-	except:
-		return json.dumps(
-			{
-				'Answer': 'Неизвестная ошибка на сервере!'
-			}, ensure_ascii = False
-		), 400
+	return json.dumps(
+		{
+			'Answer': 'Запрос к базе данных был успешно выполнен.'
+		}, ensure_ascii = False
+	), 200
 # ==================================================================
 
 if __name__ == '__main__':

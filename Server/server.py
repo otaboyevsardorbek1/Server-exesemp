@@ -83,7 +83,7 @@ def generate_unique_key(): # Генератор уникального ключ�
 	return uniqu_key
 # ==================================================================
 
-# Логика страниц для проекта "VK Bot"
+# Логика сервера для проекта "VK Bot"
 # ==================================================================
 def check_user_login_and_password_and_unique_key(func): # Декоратор
 	def wrapper():
@@ -143,7 +143,13 @@ def vk_bot_registration(): # Регистрация
 			encrypted_password = encrypt(password, password)
 
 			# Создания уникального ключа для пользователя
-			unique_key = generate_unique_key()
+			generate_unique_key = False
+			while generate_unique_key:
+				unique_key = generate_unique_key()
+				vk_bot_accounts_sql.execute(f"SELECT * FROM Accounts WHERE Unique_Key = '{unique_key}'")
+				account = vk_bot_accounts_sql.fetchone()
+				if account == None:
+					generate_unique_key = False
 
 			# Запись нового аккаунта в базу данных аккаунтов
 			vk_bot_accounts_sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (login, encrypted_password, unique_key))

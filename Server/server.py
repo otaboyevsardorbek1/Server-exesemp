@@ -143,13 +143,13 @@ def vk_bot_registration(): # Регистрация
 			encrypted_password = encrypt(password, password)
 
 			# Создания уникального ключа для пользователя
-			generate_unique_key = False
-			while generate_unique_key:
+			generate_unique_key_status = False
+			while generate_unique_key_status:
 				unique_key = generate_unique_key()
 				vk_bot_accounts_sql.execute(f"SELECT * FROM Accounts WHERE Unique_Key = '{unique_key}'")
 				account = vk_bot_accounts_sql.fetchone()
 				if account == None:
-					generate_unique_key = False
+					generate_unique_key_status = True
 
 			# Запись нового аккаунта в базу данных аккаунтов
 			vk_bot_accounts_sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (login, encrypted_password, unique_key))

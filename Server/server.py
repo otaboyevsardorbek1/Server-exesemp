@@ -11,22 +11,16 @@ import json
 import os
 
 # Если сервер на хосте
-PATH = os.getcwd()
-if platform.system() == 'Windows':
-	PATH = PATH.split('\\')
-	PATH = '/'.join(PATH[0:len(PATH) - 1])
+path = os.getcwd().split('\\')
+if path[-1] != 'Server' and path[-2] != 'Server':
+	path.append('Server')
 else:
-	PATH += '/Server'
-
-# Если сервер на PC
-# PATH = os.getcwd()
-# PATH = PATH.split('\\')
-# PATH = '/'.join(PATH[0:len(PATH) - 1])
+	del path[len(path) - 2]
+PATH = '\\'.join(path)
 
 # Создание всех нужных переменных
 # ==================================================================
 lock = threading.Lock()
-
 app = Flask(__name__)
 # ==================================================================
 

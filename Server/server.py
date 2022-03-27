@@ -11,12 +11,17 @@ import json
 import os
 
 # Если сервер на хосте
-path = os.getcwd().split('\\')
+if platform.system() == 'Windows':
+	true_slash = '\\'
+else:
+	true_slash = '/'
+
+path = os.getcwd().split(true_slash)
 if path[-1] != 'Server' and path[-2] != 'Server':
 	path.append('Server')
 else:
 	del path[len(path) - 2]
-PATH = '\\'.join(path)
+PATH = true_slash.join(path)
 
 # Создание всех нужных переменных
 # ==================================================================

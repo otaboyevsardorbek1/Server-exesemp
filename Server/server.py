@@ -190,28 +190,26 @@ def registration_account(): # Регистрация
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		login = user_data['Login']
-		password = user_data['Password']
+		password_1 = user_data['Password_1']
+		password_2 = user_data['Password_2']
 
-		if login == '' and password == '':
-			return json.dumps(
-				{
-					'Answer': 'Введите "Login" и "Password"!'
-				}, ensure_ascii = False
-			), 400
+		correct_user_data = False
+		if login == '' and password_1 == '' and password_2 == '':
+			server_error_answer = 'Введите "Login", "Password_1", "Password_2"!'
+		elif login == '' and password_1 == '':
+			server_error_answer = 'Введите "Login" и "Password_1"!'
+		elif login == '' and password_2 == '':
+			server_error_answer = 'Введите "Login" и "Password_2"!'
+		elif password_1 == '' and password_2 == '':
+			server_error_answer = 'Введите "Password_1" и "Password_2"!'
 		elif login == '':
-			return json.dumps(
-				{
-					'Answer': 'Введите "Login"!'
-				}, ensure_ascii = False
-			), 400
-		elif password == '':
-			return json.dumps(
-				{
-					'Answer': 'Введите "Password"!'
-				}, ensure_ascii = False
-			), 400
-		else:
-			if len(password) >= 8:
+			server_error_answer = 'Введите "Login"!'
+		elif password_1 == '':
+			server_error_answer = 'Введите "Password_1"!'
+		elif password_2 == '':
+			server_error_answer = 'Введите "Password_2"!'
+		if correct_user_data == True:
+			if len(password_1) >= 8:
 				lock.acquire(True)
 				vk_bot_accounts_sql.execute(f"SELECT * From Accounts WHERE Login = '{login}'")
 				account = vk_bot_accounts_sql.fetchone()
@@ -219,7 +217,7 @@ def registration_account(): # Регистрация
 
 				if account == None:
 					# Шифрования пароля
-					encrypted_password = encrypt(password, password)
+					encrypted_password = encrypt(password_1, password_1)
 
 					# Создания уникального ключа для пользователя
 					generate_unique_key_status = True
@@ -254,6 +252,12 @@ def registration_account(): # Регистрация
 						'Answer': f'Пароль должен быть не менее 8 символов!'
 					}, ensure_ascii = False
 				), 400
+		else:
+			return json.dumps(
+				{
+					'Answer': server_error_answer
+				}, ensure_ascii = False
+			), 400
 	except:
 		return json.dumps(
 			{

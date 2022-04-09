@@ -295,6 +295,17 @@ def authorization_at_account(): # Авторизация
 			if account != None:
 				enrypted_password = encrypt(password, password)
 				if enrypted_password == account[1]:
+					for folder in os.listdir(f'{PATH}/Files/{account[2]}'):
+						with open(f'{PATH}/Files/{account[2]}/{folder}/User-Commands.json', 'rb') as file:
+							user_commands = file.read()
+							user_commands = decrypt(password, user_commands)
+							user_commands = json.loads(user_commands)
+						for user_command in user_commands:
+							if len(user_command.items()) != len(Config.USER_BOT_COMMANDS[0].items()):
+								with open(f'{PATH}/Files/{account[2]}/{folder}/User-Commands.json', 'wb') as file:
+									user_commands = json.dumps(Config.USER_BOT_COMMANDS, ensure_ascii = False, indent = 2)
+									user_commands = encrypt(password, user_commands)
+									file.write(user_commands)
 					return json.dumps(
 						{
 							'Answer': 'Вы успешно авторизовались.',
@@ -355,11 +366,11 @@ def create_user_bot(user_data): # Создание бота
 				bot_settings = encrypt(password, bot_settings)
 				file.write(bot_settings)
 			with open(f'{bot_files_path}/User-Commands.json', 'wb') as file:
-				user_commands = json.dumps(Config.BOT_DEAFAULT_FILES['User-Commands.json'], ensure_ascii = False, indent = 2)
+				user_commands = json.dumps(Config.USER_BOT_COMMANDS, ensure_ascii = False, indent = 2)
 				user_commands = encrypt(password, user_commands)
 				file.write(user_commands)
 			with open(f'{bot_files_path}/Log.txt', 'wb') as file:
-				log = json.dumps(Config.BOT_DEAFAULT_FILES['Log.txt'], ensure_ascii = False, indent = 2)
+				log = json.dumps([], ensure_ascii = False, indent = 2)
 				log = encrypt(password, log)
 				file.write(log)
 			db = sqlite3.connect(f'{bot_files_path}/VK_Bot-Users-DataBase.db')

@@ -2,7 +2,6 @@
 
 from flask import Flask, request
 from Crypto.Cipher import DES
-from numpy import byte
 import config as Config
 import threading
 import platform

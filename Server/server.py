@@ -193,38 +193,45 @@ def registration_account(): # Регистрация
 			correct_user_data = False
 
 		if correct_user_data == True:
-			if len(password_1) >= 8:
-				lock.acquire(True)
-				vk_bot_accounts_sql.execute(f"SELECT * From Accounts WHERE Login = '{login}'")
-				account = vk_bot_accounts_sql.fetchone()
-				lock.release()
+			if password_1 == password_2:
+				if len(password_1) >= 8:
+					lock.acquire(True)
+					vk_bot_accounts_sql.execute(f"SELECT * From Accounts WHERE Login = '{login}'")
+					account = vk_bot_accounts_sql.fetchone()
+					lock.release()
 
-				if account == None:
-					# Шифрования пароля
-					encrypted_password = encrypt(password_1, password_1)
+					if account == None:
+						# Шифрования пароля
+						encrypted_password = encrypt(password_1, password_1)
 
-					# Запись нового аккаунта в базу данных аккаунтов
-					vk_bot_accounts_sql.execute("INSERT INTO Accounts VALUES (?, ?)", (login, encrypted_password))
-					vk_bot_accounts_db.commit()
+						# Запись нового аккаунта в базу данных аккаунтов
+						vk_bot_accounts_sql.execute("INSERT INTO Accounts VALUES (?, ?)", (login, encrypted_password))
+						vk_bot_accounts_db.commit()
 
-					# Создаём директорию для нового аккаунта пользователя
-					os.mkdir(f'{PATH}/Files/{login}')
+						# Создаём директорию для нового аккаунта пользователя
+						os.mkdir(f'{PATH}/Files/{login}')
 
-					return json.dumps(
-						{
-							'Answer': 'Вы успешно создали аккаунт.'
-						}, ensure_ascii=False
-					), 200
+						return json.dumps(
+							{
+								'Answer': 'Вы успешно создали аккаунт.'
+							}, ensure_ascii=False
+						), 200
+					else:
+						return json.dumps(
+							{
+								'Answer': f'Login "{login}" уже занят!'
+							}, ensure_ascii=False
+						), 400
 				else:
 					return json.dumps(
 						{
-							'Answer': f'Login "{login}" уже занят!'
+							'Answer': f'Пароль должен быть не менее 8 символов!'
 						}, ensure_ascii=False
 					), 400
 			else:
 				return json.dumps(
 					{
-						'Answer': f'Пароль должен быть не менее 8 символов!'
+						'Answer': f'Пароли не совпадают!'
 					}, ensure_ascii=False
 				), 400
 		else:
@@ -273,7 +280,7 @@ def authorization_at_account(): # Авторизация
 							user_commands = decrypt(password, user_commands)
 							user_commands = json.loads(user_commands)
 						for user_command in user_commands:
-							if len(user_command.items()) != len(Config.USER_BOT_COMMANDS[0].items()):
+							if len(user_command.items()) != len(Config.USER_BOT_COMMANDS[0].items()) or len(user_command['Flags'].items()) != len(Config.USER_BOT_COMMANDS[0]['Flags'].items()):
 								with open(f'{PATH}/Files/{account[0]}/{folder}/User-Commands.json', 'wb') as file:
 									user_commands = json.dumps(Config.USER_BOT_COMMANDS, ensure_ascii=False, indent=2)
 									user_commands = encrypt(password, user_commands)

@@ -4,7 +4,8 @@ USER_BOT_COMMANDS = [
 		'Command': '!Приветствие нового пользователя',
 		'Flags': {
 			'Message_For_New_User': True,
-			'Message_For_Up_Level': False
+			'Message_For_Up_Level': False,
+			'Show_Command_In_Commands_List': False
 		},
 		'Command_Answer': """\
 Добро пожаловать {user}!
@@ -15,7 +16,8 @@ USER_BOT_COMMANDS = [
 		'Command': '!Получение нового уровня',
 		'Flags': {
 			'Message_For_New_User': False,
-			'Message_For_Up_Level': True
+			'Message_For_Up_Level': True,
+			'Show_Command_In_Commands_List': False
 		},
 		'Command_Answer': 'Пользователь {user} получил новый уровень!'
 	},
@@ -24,7 +26,8 @@ USER_BOT_COMMANDS = [
 		'Command': '!Статистика',
 		'Flags': {
 			'Message_For_New_User': False,
-			'Message_For_Up_Level': False
+			'Message_For_Up_Level': False,
+			'Show_Command_In_Commands_List': True
 		},
 		'Command_Answer': """\
 Вас зовут: {user}
@@ -37,7 +40,8 @@ USER_BOT_COMMANDS = [
 		'Command': '!Статистика пользователя {take_user_id}',
 		'Flags': {
 			'Message_For_New_User': False,
-			'Message_For_Up_Level': False
+			'Message_For_Up_Level': False,
+			'Show_Command_In_Commands_List': True
 		},
 		'Command_Answer': """\
 Имя пользователя: {other_user}
@@ -51,7 +55,8 @@ USER_BOT_COMMANDS = [
 		'Command': '!Список команд',
 		'Flags': {
 			'Message_For_New_User': False,
-			'Message_For_Up_Level': False
+			'Message_For_Up_Level': False,
+			'Show_Command_In_Commands_List': True
 		},
 		'Command_Answer': """\
 Список команд:

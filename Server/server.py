@@ -162,7 +162,7 @@ def check_user_login_and_password(func): # Декоратор
 	return wrapper
 
 @app.route('/vk_bot/registration_account', methods=['POST'])
-def registration_account(): # Регистрация
+def create_new_account(): # Регистрация
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		login = user_data['Login']
@@ -248,7 +248,7 @@ def registration_account(): # Регистрация
 		), 400
 
 @app.route('/vk_bot/authorization_at_account', methods=['POST'])
-def authorization_at_account(): # Авторизация
+def authorization_in_account(): # Авторизация
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		login = user_data['Login']

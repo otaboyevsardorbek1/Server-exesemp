@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 USER_BOT_COMMANDS = [
 	{
 		'Command_Name': 'Приветствие нового пользователя',

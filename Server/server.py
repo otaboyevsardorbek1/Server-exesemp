@@ -5,46 +5,40 @@ from Crypto.Cipher import DES
 import config as Config
 import threading
 import platform
+import smtplib
 import sqlite3
+import random
 import json
 import os
 
-# Если сервер на хосте
-if platform.system() == 'Windows':
-	true_slash = '\\'
-else:
-	true_slash = '/'
+# Для получение правильного пути к файлам сервера
+def get_true_server_folder_path():
+	if platform.system() == 'Windows':
+		true_slash = '\\'
+	else:
+		true_slash = '/'
 
-path = os.getcwd().split(true_slash)
-if path[-1] != 'Server' and path[-2] != 'Server':
-	path.append('Server')
-else:
-	del path[len(path) - 2]
-SERVER_FOLDER_PATH = true_slash.join(path)
+	path = os.getcwd().split(true_slash)
+	if path[-1] != 'Server' and path[-2] != 'Server':
+		path.append('Server')
+	else:
+		del path[len(path) - 2]
+	return true_slash.join(path)
 
-# Создание всех нужных переменных
+# Создание всех нужных переменных/констант
 # ==================================================================
+with open('server_mail.json', 'r') as file:
+	content = json.loads(file.read())
+	SERVER_MAIL, SERVER_MAIL_PASSWORD = content['Mail'], content['Mail_Password']
+
+smtp = smtplib.SMTP('smtp.gmail.com', 587)
+smtp.starttls()
+smtp.login(SERVER_MAIL, SERVER_MAIL_PASSWORD)
+
+SERVER_FOLDER_PATH = get_true_server_folder_path()
+waiting_for_mail_confirmation = {}
 lock = threading.Lock()
 app = Flask(__name__)
-# ==================================================================
-
-# Подключение DB для проекта "VK Bot"
-# ==================================================================
-try:
-	os.mkdir(f'{SERVER_FOLDER_PATH}/Files')
-except FileExistsError:
-	pass
-
-db = sqlite3.connect(f'{SERVER_FOLDER_PATH}/Files/VK_Bot-Accounts-DataBase.db', check_same_thread=False)
-sql = db.cursor()
-
-sql.execute("""
-	CREATE TABLE IF NOT EXISTS Accounts(
-		Login TEXT,
-		Password BLOB
-	)
-""")
-db.commit()
 # ==================================================================
 
 # Обычные функции
@@ -71,13 +65,53 @@ def decrypt(key: str, encrypted_data): # Дешифровка
 	decrypted_data = des.decrypt(encrypted_data)
 	return decrypted_data.decode('UTF-8').strip()
 
-def find_folder(path: str, folder_name: str): # Посик файл/папки
+def find_folder(path: str, folder_name: str): # Поиск папки
 	find_folder_status = False
 	for folder in os.listdir(path):
 		if folder == folder_name:
 			find_folder_status = True
 			break
 	return find_folder_status
+
+def generate_gunique_code(): # Генератор уникального ключа
+	unique_code = ''
+	for _ in range(8):
+		unique_code += random.choice(list('1234567890'))
+	return unique_code
+
+def register_account_after_mail_confirmation(unique_code: str): # Регистрация аккаунта после подтверждения почты
+	user_data = waiting_for_mail_confirmation[unique_code]
+	login = user_data['Login']
+	mail = user_data['Mail']
+	password = user_data['Password']
+
+	os.mkdir(f'{SERVER_FOLDER_PATH}/Files/{login}')
+
+	lock.acquire(True)
+	encrypted_password = encrypt(password, password)
+	sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (login, mail, encrypted_password))
+	db.commit()
+	lock.release()
+
+	del waiting_for_mail_confirmation[unique_code]
+# ==================================================================
+
+# Создание всех нужных папок и подключение DB проекта "VK Bot"
+# ==================================================================
+if find_folder(SERVER_FOLDER_PATH, 'Files') != True:
+	os.mkdir(f'{SERVER_FOLDER_PATH}/Files')
+
+db = sqlite3.connect(f'{SERVER_FOLDER_PATH}/Files/VK_Bot-Accounts.db', check_same_thread=False)
+sql = db.cursor()
+
+sql.execute("""
+	CREATE TABLE IF NOT EXISTS Accounts(
+		Login TEXT,
+		Mail TEXT,
+		Password BLOB
+	)
+""")
+db.commit()
 # ==================================================================
 
 # Логика сервера для проекта "VK Bot"
@@ -95,7 +129,7 @@ def check_user_data(func): # Декоратор
 
 			if account != None:
 				enrypted_password = encrypt(password, password)
-				if enrypted_password == account[1]:
+				if enrypted_password == account[2]:
 					if bot_name != None:
 						if find_folder(f'{SERVER_FOLDER_PATH}/Files/{account[0]}', bot_name) == True:
 							return func(user_data, login, bot_name)
@@ -128,31 +162,43 @@ def check_user_data(func): # Декоратор
 	wrapper.__name__ = func.__name__
 	return wrapper
 
-@app.route('/vk_bot/registration_account', methods=['POST'])
-def registration_account(): # Регистрация
+@app.route('/vk_bot/mail_confirmation/<string:gunique_code>', methods=['POST'])
+def mail_confirmation(gunique_code): # Подтверждения почты
+	if gunique_code in waiting_for_mail_confirmation:
+		waiting_for_mail_confirmation[gunique_code]['Function_After_Confirmation'](gunique_code)
+		return json.dumps(
+			{
+				'Answer': 'Успешное подтверждение почты.'
+			}, ensure_ascii=False
+		), 200
+	else:
+		return json.dumps(
+			{
+				'Answer': 'Неверный код для подтверждения почты!'
+			}, ensure_ascii=False
+		), 400
+
+@app.route('/vk_bot/register_account', methods=['POST'])
+def register_account(): # Регистрация
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		login = user_data['Login']
+		mail = user_data['Mail']
 		password_1 = user_data['Password_1']
 		password_2 = user_data['Password_2']
 
-		server_answer = ''
-		if login == '' and password_1 == '' and password_2 == '':
-			server_answer = 'Введите "Login", "Password_1", "Password_2"!'
-		elif login == '' and password_1 == '':
-			server_answer = 'Введите "Login" и "Password_1"!'
-		elif login == '' and password_2 == '':
-			server_answer = 'Введите "Login" и "Password_2"!'
-		elif password_1 == '' and password_2 == '':
-			server_answer = 'Введите "Password_1" и "Password_2"!'
-		elif login == '':
-			server_answer = 'Введите "Login"!'
-		elif password_1 == '':
-			server_answer = 'Введите "Password_1"!'
-		elif password_2 == '':
-			server_answer = 'Введите "Password_2"!'
+		invalid_form_reg = []
+		if login == '':
+			invalid_form_reg.append('"Login"')
+		if mail == '':
+			invalid_form_reg.append('"Mail"')
+		if password_1 == '':
+			invalid_form_reg.append('"Password_1"')
+		if password_2 == '':
+			invalid_form_reg.append('"Password_2"')
+		server_answer = f"Введите {', '.join(invalid_form_reg)}!"
 
-		if server_answer == '':
+		if server_answer == 'Введите !':
 			if password_1 == password_2:
 				if len(password_1) >= 8:
 					lock.acquire(True)
@@ -161,17 +207,26 @@ def registration_account(): # Регистрация
 					lock.release()
 
 					if account == None:
-						os.mkdir(f'{SERVER_FOLDER_PATH}/Files/{login}')
+						unique_code = generate_gunique_code()
+						waiting_for_mail_confirmation.update(
+							{
+								unique_code: {
+									'Login': login,
+									'Mail': mail,
+									'Password': password_1,
+									'Function_After_Confirmation': register_account_after_mail_confirmation
+								}
+							}
+						)
 
-						lock.acquire(True)
-						encrypted_password = encrypt(password_1, password_1)
-						sql.execute("INSERT INTO Accounts VALUES (?, ?)", (login, encrypted_password))
-						db.commit()
-						lock.release()
+						smtp.sendmail(SERVER_MAIL, mail, f"""\
+Subject: Подтверждения почты!
+
+Код для подтверждения почты: {unique_code}""".encode('UTF-8'))
 
 						return json.dumps(
 							{
-								'Answer': 'Вы успешно создали аккаунт.'
+								'Answer': 'Ожидание подтверждения почты.'
 							}, ensure_ascii=False
 						), 200
 					else:
@@ -205,8 +260,8 @@ def registration_account(): # Регистрация
 			}, ensure_ascii=False
 		), 400
 
-@app.route('/vk_bot/authorization_in_account', methods=['POST'])
-def authorization_in_account(): # Авторизация
+@app.route('/vk_bot/authorize_in_account', methods=['POST'])
+def authorize_in_account(): # Авторизация
 	try:
 		user_data = json.loads(request.data.decode('UTF-8'))
 		login = user_data['Login']
@@ -228,7 +283,7 @@ def authorization_in_account(): # Авторизация
 
 			if account != None:
 				enrypted_password = encrypt(password, password)
-				if enrypted_password == account[1]:
+				if enrypted_password == account[2]:
 					for folder in os.listdir(f'{SERVER_FOLDER_PATH}/Files/{account[0]}'):
 						with open(f'{SERVER_FOLDER_PATH}/Files/{account[0]}/{folder}/User-Commands.json', 'rb') as file:
 							user_commands = file.read()
@@ -270,7 +325,7 @@ def authorization_in_account(): # Авторизация
 			}, ensure_ascii=False
 		), 400
 
-@app.route('/vk_bot/<string:login>/create_user_bot', methods=['POST'])
+@app.route('/vk_bot/<string:login>/create_bot', methods=['POST'])
 @check_user_data
 def create_user_bot(user_data: dict, login: str): # Создание бота
 	bot_name = user_data['Bot_Name']
@@ -323,9 +378,9 @@ def create_user_bot(user_data: dict, login: str): # Создание бота
 			}, ensure_ascii=False
 		), 400
 
-@app.route('/vk_bot/<string:login>/get_user_bot_list', methods=['POST'])
+@app.route('/vk_bot/<string:login>/get_bots_list', methods=['POST'])
 @check_user_data
-def get_user_bot_list(user_data: dict, login: str): # Получение списка ботов
+def get_user_bots_list(user_data: dict, login: str): # Получение списка ботов
 	return json.dumps(
 		{
 			'Answer': 'Запрос к списку ботов был успешно выполнен.',
@@ -333,7 +388,7 @@ def get_user_bot_list(user_data: dict, login: str): # Получение спи�
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/delete_user_bot', methods=['POST'])
+@app.route('/vk_bot/<string:login>/delete_bot', methods=['POST'])
 @check_user_data
 def delete_user_bot(user_data: dict, login: str): # Удаление бота
 	bot_name = user_data['Bot_Name']
@@ -355,9 +410,9 @@ def delete_user_bot(user_data: dict, login: str): # Удаление бота
 			}, ensure_ascii=False
 		), 400
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/bot_settings/get', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/get_bot_settings', methods=['POST'])
 @check_user_data
-def user_bot_settings_get(user_data: dict, login: str, bot_name: str): # Получение настроек бота
+def get_bot_settings(user_data: dict, login: str, bot_name: str): # Получение настроек бота
 	password = user_data['Password']
 
 	with open(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/Bot-Settings.json', 'rb') as file:
@@ -372,9 +427,9 @@ def user_bot_settings_get(user_data: dict, login: str, bot_name: str): # Пол�
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/bot_settings/update', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/update_bot_settings', methods=['POST'])
 @check_user_data
-def user_bot_settings_update(user_data: dict, login: str, bot_name: str): # Обновление настроек бота
+def update_bot_settings(user_data: dict, login: str, bot_name: str): # Обновление настроек бота
 	password = user_data['Password']
 
 	with open(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/Bot-Settings.json', 'wb') as file:
@@ -388,9 +443,9 @@ def user_bot_settings_update(user_data: dict, login: str, bot_name: str): # Об
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/user_commands/get', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/get_bot_commands_list', methods=['POST'])
 @check_user_data
-def user_commands_get(user_data: dict, login: str, bot_name: str): # Получение команд бота
+def get_bot_commands_list(user_data: dict, login: str, bot_name: str): # Получение команд бота
 	password = user_data['Password']
 
 	with open(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/User-Commands.json', 'rb') as file:
@@ -405,9 +460,9 @@ def user_commands_get(user_data: dict, login: str, bot_name: str): # Получ�
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/user_commands/update', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/update_bot_commands_list', methods=['POST'])
 @check_user_data
-def user_commands_update(user_data: dict, login: str, bot_name: str): # Обновление команд бота
+def update_bot_commands_list(user_data: dict, login: str, bot_name: str): # Обновление команд бота
 	password = user_data['Password']
 
 	with open(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/User-Commands.json', 'wb') as file:
@@ -421,9 +476,9 @@ def user_commands_update(user_data: dict, login: str, bot_name: str): # Обно
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/log/get', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/get_bot_log', methods=['POST'])
 @check_user_data
-def log_get(user_data: dict, login: str, bot_name: str): # Получение логов бота
+def get_bot_log(user_data: dict, login: str, bot_name: str): # Получение логов бота
 	password = user_data['Password']
 
 	with open(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/Log.txt', 'rb') as file:
@@ -438,9 +493,9 @@ def log_get(user_data: dict, login: str, bot_name: str): # Получение л
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/log/update', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/update_bot_log', methods=['POST'])
 @check_user_data
-def log_update(user_data: dict, login: str, bot_name: str): # Обновление логов бота
+def update_bot_log(user_data: dict, login: str, bot_name: str): # Обновление логов бота
 	password = user_data['Password']
 
 	with open(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/Log.txt', 'wb') as file:
@@ -454,9 +509,9 @@ def log_update(user_data: dict, login: str, bot_name: str): # Обновлени
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/database/find', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/database/fetchone', methods=['POST'])
 @check_user_data
-def user_database_find(user_data: dict, login: str, bot_name: str): # Поиск одной записи в БД
+def bot_database_fetchone(user_data: dict, login: str, bot_name: str): # Поиск одной записи в БД
 	vk_bot_db = sqlite3.connect(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/VK_Bot-Users-DataBase.db', check_same_thread = False)
 	vk_bot_sql = vk_bot_db.cursor()
 	vk_bot_sql.execute(user_data['SQLite3_Command'])
@@ -470,9 +525,9 @@ def user_database_find(user_data: dict, login: str, bot_name: str): # Поиск
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/database/find_all', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/database/fetchall', methods=['POST'])
 @check_user_data
-def user_database_find_all(user_data: dict, login: str, bot_name: str): # Поиск несколько записей в БД
+def bot_database_fetchall(user_data: dict, login: str, bot_name: str): # Поиск несколько записей в БД
 	vk_bot_db = sqlite3.connect(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/VK_Bot-Users-DataBase.db', check_same_thread = False)
 	vk_bot_sql = vk_bot_db.cursor()
 	vk_bot_sql.execute(user_data['SQLite3_Command'])
@@ -486,9 +541,9 @@ def user_database_find_all(user_data: dict, login: str, bot_name: str): # Пои
 		}, ensure_ascii=False
 	), 200
 
-@app.route('/vk_bot/<string:login>/<string:bot_name>/database/edit_database', methods=['POST'])
+@app.route('/vk_bot/<string:login>/<string:bot_name>/database/edit', methods=['POST'])
 @check_user_data
-def edit_user_database(user_data: dict, login: str, bot_name: str): # Редактирования БД
+def bot_database_edit(user_data: dict, login: str, bot_name: str): # Редактирования БД
 	vk_bot_db = sqlite3.connect(f'{SERVER_FOLDER_PATH}/Files/{login}/{bot_name}/VK_Bot-Users-DataBase.db', check_same_thread = False)
 	vk_bot_sql = vk_bot_db.cursor()
 

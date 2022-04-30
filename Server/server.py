@@ -27,7 +27,9 @@ def get_true_server_folder_path():
 
 # Создание всех нужных переменных/констант
 # ==================================================================
-with open('server_mail.json', 'r') as file:
+SERVER_FOLDER_PATH = get_true_server_folder_path()
+
+with open(f'{SERVER_FOLDER_PATH}/Server/server_mail.json', 'r') as file:
 	content = json.loads(file.read())
 	SERVER_MAIL, SERVER_MAIL_PASSWORD = content['Mail'], content['Mail_Password']
 
@@ -35,7 +37,6 @@ smtp = smtplib.SMTP('smtp.gmail.com', 587)
 smtp.starttls()
 smtp.login(SERVER_MAIL, SERVER_MAIL_PASSWORD)
 
-SERVER_FOLDER_PATH = get_true_server_folder_path()
 waiting_for_mail_confirmation = {}
 lock = threading.Lock()
 app = Flask(__name__)

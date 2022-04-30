@@ -163,7 +163,7 @@ def check_user_data(func): # Декоратор
 	wrapper.__name__ = func.__name__
 	return wrapper
 
-@app.route('/vk_bot/mail_confirmation/<string:gunique_code>', methods=['POST'])
+@app.route('/vk_bot/mail_confirmation/<string:gunique_code>', methods=['GET'])
 def mail_confirmation(gunique_code): # Подтверждения почты
 	if gunique_code in waiting_for_mail_confirmation:
 		waiting_for_mail_confirmation[gunique_code]['Function_After_Confirmation'](gunique_code)

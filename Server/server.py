@@ -5,9 +5,7 @@ from Crypto.Cipher import DES
 import config as Config
 import threading
 import platform
-import smtplib
 import sqlite3
-import random
 import json
 import os
 
@@ -28,16 +26,6 @@ def get_true_server_folder_path():
 # Создание всех нужных переменных/констант
 # ==================================================================
 SERVER_FOLDER_PATH = get_true_server_folder_path()
-
-with open(f'{SERVER_FOLDER_PATH}/Server/server_mail.json', 'r') as file:
-	content = json.loads(file.read())
-	SERVER_MAIL, SERVER_MAIL_PASSWORD = content['Mail'], content['Mail_Password']
-
-smtp = smtplib.SMTP('smtp.gmail.com', 587)
-smtp.starttls()
-smtp.login(SERVER_MAIL, SERVER_MAIL_PASSWORD)
-
-waiting_for_mail_confirmation = {}
 lock = threading.Lock()
 app = Flask(__name__)
 # ==================================================================
@@ -73,28 +61,6 @@ def find_folder(path: str, folder_name: str): # Поиск папки
 			find_folder_status = True
 			break
 	return find_folder_status
-
-def generate_gunique_code(): # Генератор уникального ключа
-	unique_code = ''
-	for _ in range(8):
-		unique_code += random.choice(list('1234567890'))
-	return unique_code
-
-def register_account_after_mail_confirmation(unique_code: str): # Регистрация аккаунта после подтверждения почты
-	user_data = waiting_for_mail_confirmation[unique_code]
-	login = user_data['Login']
-	mail = user_data['Mail']
-	password = user_data['Password']
-
-	os.mkdir(f'{SERVER_FOLDER_PATH}/Files/{login}')
-
-	lock.acquire(True)
-	encrypted_password = encrypt(password, password)
-	sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (login, mail, encrypted_password))
-	db.commit()
-	lock.release()
-
-	del waiting_for_mail_confirmation[unique_code]
 # ==================================================================
 
 # Создание всех нужных папок и подключение DB проекта "VK Bot"
@@ -163,22 +129,6 @@ def check_user_data(func): # Декоратор
 	wrapper.__name__ = func.__name__
 	return wrapper
 
-@app.route('/vk_bot/mail_confirmation/<string:gunique_code>', methods=['GET'])
-def mail_confirmation(gunique_code): # Подтверждения почты
-	if gunique_code in waiting_for_mail_confirmation:
-		waiting_for_mail_confirmation[gunique_code]['Function_After_Confirmation'](gunique_code)
-		return json.dumps(
-			{
-				'Answer': 'Успешное подтверждение почты.'
-			}, ensure_ascii=False
-		), 200
-	else:
-		return json.dumps(
-			{
-				'Answer': 'Неверный код для подтверждения почты!'
-			}, ensure_ascii=False
-		), 400
-
 @app.route('/vk_bot/register_account', methods=['POST'])
 def register_account(): # Регистрация
 	try:
@@ -208,22 +158,13 @@ def register_account(): # Регистрация
 					lock.release()
 
 					if account == None:
-						unique_code = generate_gunique_code()
-						waiting_for_mail_confirmation.update(
-							{
-								unique_code: {
-									'Login': login,
-									'Mail': mail,
-									'Password': password_1,
-									'Function_After_Confirmation': register_account_after_mail_confirmation
-								}
-							}
-						)
+						os.mkdir(f'{SERVER_FOLDER_PATH}/Files/{login}')
 
-						smtp.sendmail(SERVER_MAIL, mail, f"""\
-Subject: Подтверждения почты!
-
-Код для подтверждения почты: {unique_code}""".encode('UTF-8'))
+						lock.acquire(True)
+						encrypted_password = encrypt(password_1, password_1)
+						sql.execute("INSERT INTO Accounts VALUES (?, ?, ?)", (login, mail, encrypted_password))
+						db.commit()
+						lock.release()
 
 						return json.dumps(
 							{
